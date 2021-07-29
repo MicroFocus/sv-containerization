@@ -1,0 +1,364 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-svc
+spec:
+  ports:
+  - name: postgres-port
+    port: 5432
+    targetPort: 5432
+  selector:
+    name: postgres
+  type: NodePort
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: apls-svc
+spec:
+  ports:
+  - name: apls-port
+    port: 5814
+    targetPort: 5814
+  selector:
+    name: apls
+  type: NodePort
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sv-server-svc
+spec:
+  ports:
+  - name: sv-server-rest-api
+    port: 6085
+    targetPort: 6085
+  - name: sv-server-agent1
+    port: 7000
+    targetPort: 7000
+  - name: sv-server-agent2
+    port: 7001
+    targetPort: 7001
+  - name: sv-server-agent3
+    port: 7002
+    targetPort: 7002
+  - name: sv-server-agent4
+    port: 7003
+    targetPort: 7003
+  - name: sv-server-agent5
+    port: 7004
+    targetPort: 7004
+  - name: sv-server-agent6
+    port: 7005
+    targetPort: 7005
+  - name: sv-server-agent7
+    port: 7006
+    targetPort: 7006
+  - name: sv-server-agent8
+    port: 7007
+    targetPort: 7007
+  - name: sv-server-agent9
+    port: 7008
+    targetPort: 7008
+  - name: sv-server-agent10
+    port: 7009
+    targetPort: 7009
+  selector:
+    name: sv-server
+  type: NodePort
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sv-svm-svc
+spec:
+  ports:
+  - name: sv-svm
+    port: 6086
+    targetPort: 6086
+  selector:
+    name: sv-svm
+  type: NodePort
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: postgres-pvc
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 4Gi
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: sv-work-pvc
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Mi
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: sv-logs-pvc
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: apls-logs-pvc
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100M
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: apls-config-pvc
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10M
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: apls-data-pvc
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps.openshift.io/v1
+kind: DeploymentConfig
+metadata:
+  name: postgres
+  labels:
+    app: postgres
+spec:
+  selector:
+    name: postgres
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres
+        env:
+        - name: POSTGRES_PASSWORD
+          value: "postgres"
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 5432
+        volumeMounts:
+        - name: postgres-data
+          mountPath: /var/lib/postgresql/data
+          readOnly: false
+      volumes:
+      - name: postgres-data
+        persistentVolumeClaim:
+          claimName: postgres-pvc
+---
+apiVersion: apps.openshift.io/v1
+kind: DeploymentConfig
+metadata:
+  name: apls
+  labels:
+    app: apls
+spec:
+  selector:
+    name: apls
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: apls
+    spec:
+      volumes:
+      - name: apls-storage-logs
+        persistentVolumeClaim:
+          claimName: apls-logs-pvc
+      - name: apls-storage-config
+        persistentVolumeClaim:
+          claimName: apls-config-pvc
+      - name: apls-storage-data
+        persistentVolumeClaim:
+          claimName: apls-data-pvc
+      terminationGracePeriodSeconds: 60
+      containers:
+      - name: apls
+        image: mfsharedtech/apls:11.7.0-2020111712
+        tty: true
+        env:
+        - name: EULA
+          value: "true"
+        volumeMounts:
+        - name: apls-storage-logs
+          mountPath: /logs/
+          readOnly: false
+        - name: apls-storage-config
+          mountPath: /config/
+          readOnly: false
+        - name: apls-storage-data
+          mountPath: /var/opt/autopass/apls/licenseserver/data/
+          readOnly: false
+        imagePullSecrets:
+        - name: regcred
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 5814
+          name: apls
+---
+apiVersion: apps.openshift.io/v1
+kind: DeploymentConfig
+metadata:
+  name: sv-server
+  labels:
+    app: sv-server
+spec:
+  selector:
+    name: sv-server
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: sv-server
+    spec:
+      volumes:
+      - name: sv-storage-work
+        persistentVolumeClaim:
+          claimName: sv-work-pvc
+      - name: sv-storage-logs
+        persistentVolumeClaim:
+          claimName: sv-logs-pvc
+      terminationGracePeriodSeconds: 120
+      containers:
+      - name: sv-server
+        image: virtualization/sv-server:5.4.0.4583
+        tty: true
+        env:
+        - name: SV_HOSTNAME
+          value: "sv-server-svc"
+        - name: SV_LICENSE_SERVER_URL
+          value: "https://apls-svc:5814"
+        - name: MONO_TLS_PROVIDER
+          value: "legacy"
+        - name: SV_DB_TYPE
+          value: "postgresql"
+        - name: SV_DB_USERNAME
+          value: "postgres"
+        - name: SV_DB_PASSWORD
+          value: "postgres"
+        - name : SV_DB_DATASOURCE
+          value: ";Host=postgres-svc;Database=postgres"
+        - name: SV_SERVER_AGENT_PORTS
+          value: "7000-7009"
+        - name: SV_USER
+          value: "admin"
+        - name : SV_PASSWORD
+          value: "password"
+#        - name: SV_DB_RECREATE
+#          value: "true"
+        - name : SV_GROUPS
+          value: "SVM Users,SV Server Administrators"
+        volumeMounts:
+        - name: sv-storage-work
+          mountPath: /opt/microfocus/sv-server/work
+          readOnly: false
+        - name: sv-storage-logs
+          mountPath: /opt/microfocus/sv-server/logs
+          readOnly: false
+        imagePullSecrets:
+        - name: regcred
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 6085
+          name: rest-api
+        - containerPort: 7000
+          name: agent1
+        - containerPort: 7001
+          name: agent2
+        - containerPort: 7002
+          name: agent3
+        - containerPort: 7003
+          name: agent4
+        - containerPort: 7004
+          name: agent5
+        - containerPort: 7005
+          name: agent6
+        - containerPort: 7006
+          name: agent7
+        - containerPort: 7007
+          name: agent8
+        - containerPort: 7008
+          name: agent9
+        - containerPort: 7009
+          name: agent10
+---
+apiVersion: apps.openshift.io/v1
+kind: DeploymentConfig
+metadata:
+  name: sv-svm
+  labels:
+    app: sv-svm
+spec:
+  selector:
+    name: sv-svm
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: sv-svm
+    spec:
+      volumes:
+      - name: sv-storage-work
+        persistentVolumeClaim:
+          claimName: sv-work-pvc
+      - name: sv-storage-logs
+        persistentVolumeClaim:
+          claimName: sv-logs-pvc
+      terminationGracePeriodSeconds: 120
+      containers:
+      - name: sv-svm
+        image: virtualization/sv-svm:5.4.0.4583
+        tty: true
+        env:
+        - name: SV_HOSTNAME
+          value: "sv-svm-svc"
+        - name: SV_SSL_CERTIFICATE_GENERATE
+          value: "false"
+        volumeMounts:
+        - name: sv-storage-work
+          mountPath: /opt/microfocus/sv-server/work
+          readOnly: false
+        - name: sv-storage-logs
+          mountPath: /opt/microfocus/sv-server/logs
+          readOnly: false
+        imagePullSecrets:
+        - name: regcred
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 6086
+          name: sv-svm
