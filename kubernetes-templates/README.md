@@ -4,13 +4,15 @@ This readme describes how to setup SV Server and other required components for a
 
 ## Setup
 
-The working environment can be created in three steps:
+The working environment can be created using following steps:
 
 1. `kubectl apply -f apls.yml`
 
    This command creates an AutoPass License Server service `apls-svc`. After creation, you will need to login at https://apls-svc:5814/autopass/ with admin/password and upload the license. If you don't provide a license, you'll not be able to switch any virtual service to simulation.
 
-1. Pre-create paths on node, where you want to host SV Server and SVM containers:
+1. Replace `kubernetes-master` in the svserver.yml with the node name, where you want to host the SV Server and SV Management.
+
+1. Pre-create paths on the node, where you want to host SV Server and SV Management containers:
 
    `sudo mkdir /mnt/sv/logs`
 
