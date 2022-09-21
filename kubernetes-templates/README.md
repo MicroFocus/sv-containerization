@@ -6,7 +6,7 @@ This readme describes how to setup SV Server and other required components for a
 
 The working environment can be created in three steps:
 
-1. `kubectl apply -f apply.yml`
+1. `kubectl apply -f apls.yml`
 
    This command creates an AutoPass License Server service `apls-svc`. After creation, you will need to login at https://apls-svc:5814/autopass/ with admin/password and upload the license. If you don't provide a license, you'll not be able to switch any virtual service to simulation.
 
