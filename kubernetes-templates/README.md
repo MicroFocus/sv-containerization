@@ -4,7 +4,7 @@ This readme describes how to setup SV Server and other required components for a
 
 ## Setup
 
-The working environment can be created in two steps:
+The working environment can be created in three steps:
 
 1. `kubectl apply -f apply.yml`
 
