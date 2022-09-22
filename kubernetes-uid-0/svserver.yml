@@ -1,0 +1,272 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: sv-work-pvc
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1M
+  storageClassName: manual
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: sv-work-pv
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 1M
+  volumeMode: Filesystem
+  accessModes:
+  - ReadWriteOnce
+  hostPath:
+    path: "/mnt/sv/work"
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: sv-logs-pvc
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 200M
+  storageClassName: manual
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: sv-logs-pv
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 200M
+  volumeMode: Filesystem
+  accessModes:
+  - ReadWriteOnce
+  hostPath:
+    path: "/mnt/sv/logs"
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: postgres-pvc
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: manual
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: postgres-pv
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 1Gi
+  volumeMode: Filesystem
+  accessModes:
+  - ReadWriteOnce
+  hostPath:
+    path: "/mnt/postgres"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: sv-server
+  name: sv-server
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: sv-service
+  template:
+    metadata:
+      labels:
+        app: sv-service
+    spec:
+      securityContext:
+        runAsUser: 0
+      volumes:
+      - name: sv-storage-work
+        persistentVolumeClaim:
+          claimName: sv-work-pvc
+      - name: sv-storage-logs
+        persistentVolumeClaim:
+          claimName: sv-logs-pvc
+      - name: postgres-data
+        persistentVolumeClaim:
+          claimName: postgres-pvc
+      terminationGracePeriodSeconds: 120
+      containers:
+      - name: sv-server
+        image: virtualization/sv-server:5.6.0.1636
+        tty: true
+        lifecycle:
+          preStop:
+            exec:
+              command: 
+                - /bin/bash
+                - -c
+                - pkill -15 -f dotnet; while kill -0 1; do sleep 5; done && rm /opt/microfocus/sv-server/work/lock                 
+        command: ["/bin/bash","-c"]
+#                  wait until lock file exists or timeout
+#                  create lock file                              
+#                  if persistent configuration doesn't exist, move it to the persistent volume
+#                  link the original location to the persistent volume directory
+#                  start sv server 
+#                  remove lock file                                                                                              
+        args: ["i=0 
+                  && while [ \"$i\" -lt 60 -a -f /opt/microfocus/sv-server/work/lock ]; do  i=$((i+1)); sleep 1; done 
+                  && echo sv>/opt/microfocus/sv-server/work/lock 
+                  && /opt/microfocus/sv-server/bin/start-server.sh && rm /opt/microfocus/sv-server/work/lock"]
+        resources:
+          requests:
+            # suggested minimum memory is 8GB
+            memory: "2Gi"
+            # suggested minimum CPU count is 4
+            cpu: "2"
+        env:
+        - name : SV_HOSTNAME
+          value: "sv-server-svc"
+        - name : SV_LICENSE_SERVER_URL
+          value: https://apls-svc:5814
+        - name : MONO_TLS_PROVIDER
+          value: "legacy"
+        - name : SV_DB_TYPE
+          value: "postgresql"
+        - name : SV_DB_USERNAME
+          value: "postgres"
+        - name : SV_DB_PASSWORD
+          value: "postgres"
+        # Please update to your DB
+        - name : SV_DB_DATASOURCE
+          value: ";Host=localhost;Database=postgres;"
+        - name : SV_DB_NAME
+          value: "postgres"
+        # Please update to your DB
+        - name : SV_DB_WAIT_FOR
+          value: "localhost:5432"
+        - name : SV_DB_RECREATE
+          value: "true"
+        - name : SV_SERVER_AGENT_PORTS
+          value: "7000-7009"
+        - name : SV_USER
+          value: "admin"
+        - name : SV_PASSWORD
+          value: "password"
+        - name : SV_GROUPS
+          value: "SVM Users,SV Server Administrators"
+        volumeMounts:
+        - name: sv-storage-work
+          mountPath: /opt/microfocus/sv-server/work
+          readOnly: false
+        - name: sv-storage-logs
+          mountPath: /opt/microfocus/sv-server/logs
+          readOnly: false
+        ports:
+        - containerPort: 6085
+          name: sv-server-api
+        - containerPort: 7000
+          name: agent-port-7000
+        - containerPort: 7001
+          name: agent-port-7001
+        - containerPort: 7002
+          name: agent-port-7002
+        - containerPort: 7003
+          name: agent-port-7003
+        - containerPort: 7004
+          name: agent-port-7004
+        - containerPort: 7005
+          name: agent-port-7005
+        - containerPort: 7006
+          name: agent-port-7006
+        - containerPort: 7007
+          name: agent-port-7007
+        - containerPort: 7008
+          name: agent-port-7008
+        - containerPort: 7009
+          name: agent-port-7009
+      - name: sv-svm
+        image: virtualization/sv-svm:5.6.0.1636
+        tty: true
+        env:
+        - name: SV_HOSTNAME
+          value: "sv-svm-svc"
+        - name: SV_SSL_CERTIFICATE_GENERATE
+          value: "false"
+        volumeMounts:
+        - name: sv-storage-work
+          mountPath: /opt/microfocus/sv-server/work
+          readOnly: false
+        - name: sv-storage-logs
+          mountPath: /opt/microfocus/sv-server/logs
+          readOnly: false
+      - name: sv-postgres-db
+        image: postgres
+        env:
+        - name: POSTGRES_PASSWORD
+          value: "postgres"
+        - name: PGDATA
+          value: "/var/lib/postgresql/data/pgdata"
+        ports:
+        - containerPort: 5432
+        volumeMounts:
+        - name: postgres-data
+          mountPath: /var/lib/postgresql/data
+          readOnly: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sv-server-svc
+spec:
+  ports:
+  - name: sv-server-api
+    port: 6085
+    targetPort: 6085
+  - name: sv-management
+    port: 6086
+    targetPort: 6086
+  - name: agent-port-7000
+    port: 7000
+    targetPort: 7000
+  - name: agent-port-7001
+    port: 7001
+    targetPort: 7001
+  - name: agent-port-7002
+    port: 7002
+    targetPort: 7002
+  - name: agent-port-7003
+    port: 7003
+    targetPort: 7003
+  - name: agent-port-7004
+    port: 7004
+    targetPort: 7004
+  - name: agent-port-7005
+    port: 7005
+    targetPort: 7005
+  - name: agent-port-7006
+    port: 7006
+    targetPort: 7006
+  - name: agent-port-7007
+    port: 7007
+    targetPort: 7007
+  - name: agent-port-7008
+    port: 7008
+    targetPort: 7008
+  - name: agent-port-7009
+    port: 7009
+    targetPort: 7009
+  selector:
+    app: sv-service
+  type: NodePort

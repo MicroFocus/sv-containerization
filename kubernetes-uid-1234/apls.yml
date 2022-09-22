@@ -1,0 +1,149 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: apls-data-pvc
+  labels:
+    app: apls
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+  storageClassName: manual
+---
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+  name: apls-data-pv
+  labels:
+    type: local
+    app: apls
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 2Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/mnt/apls-data"
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: apls-logs-pvc
+  labels:
+    app: apls
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100M
+  storageClassName: manual
+---
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+  name: apls-logs-pv
+  labels:
+    type: local
+    app: apls
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 2Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/mnt/apls-logs"
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: apls-config-pvc
+  labels:
+    app: apls
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10M
+  storageClassName: manual
+---
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+  name: apls-config-pv
+  labels:
+    type: local
+    app: apls
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 2Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/mnt/apls-config"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: apls
+  labels:
+    app: apls
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: apls
+  template:
+    metadata:
+      labels:
+        app: apls
+    spec:
+      volumes:
+      - name: apls-storage-logs
+        persistentVolumeClaim:
+          claimName: apls-logs-pvc
+      - name: apls-storage-config
+        persistentVolumeClaim:
+          claimName: apls-config-pvc
+      - name: apls-storage-data
+        persistentVolumeClaim:
+          claimName: apls-data-pvc
+      containers:
+      - name: apls
+        image: mfsharedtech/apls:12.3.0-latest
+        tty: true
+        env:
+        - name: EULA
+          value: "true"
+        ports:
+        - containerPort: 5814
+          name: apls
+        volumeMounts:
+        - name: apls-storage-logs
+          mountPath: /logs/
+          readOnly: false
+        - name: apls-storage-config
+          mountPath: /config/
+          readOnly: false
+        - name: apls-storage-data
+          mountPath: /var/opt/autopass/apls/licenseserver/data/
+          readOnly: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: apls-svc
+spec:
+  type: NodePort
+  ports:
+  - name: apls-port
+    port: 5814
+    targetPort: 5814
+  selector:
+    app: apls

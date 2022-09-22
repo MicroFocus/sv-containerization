@@ -1,6 +1,6 @@
-# Running SV Server in Kubernetes
+# Running SV Server in Kubernetes under non-root user
 
-This readme describes how to setup SV Server and other required components for a complete working environment in Kubernetes. The steps are valid for SV version 2022 R1. These examples are meant to be used as a starting point for your own configuration and are not reflecting production ready configuration.
+This example shows how to setup all the components required to run SV Server. The user under which SV Server runs is a non-root user with UID 1234. The steps are valid for SV version 2022 R1. These examples are meant to be used as a starting point for your own configuration and are not reflecting production ready configuration.
 
 ## Setup
 
