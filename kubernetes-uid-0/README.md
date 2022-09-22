@@ -17,8 +17,6 @@ This command creates a Deployment, which consists from following containers:
    - virtualization/sv-svm - SV Management exposed at https://sv-server-svc:6086 (user admin/password)
    - postgres - PostgreSQL database is used by sv-server and is not exposed via service
 
-Please note that SV Server needs to run with specific configuration of securityContext if you don't want it to run as root. This means you need to use `fsGroup: 1234` and optionally `runAsUser: 1234` in the securityContext. To let SV Server access files on volumes when it runs under UID 1234, all Persistent Volumes must support propagation of securityContext configuration. `hostPath` volumes do not support securityContext propagation and that's why `local` volumes are used in the example.
-
 ## How to Add new User
 
 If you want to add additional users potentionally with different permissions, you can use `sv-AddUser` script in the sv-server container to do so. For example:
