@@ -1,3 +1,5 @@
 # Examples and Templates of SV running in containers
 
-So far just OpenShift template
+- OpenShift example
+- Kubernetes with root user
+- Kubernetes with non-root user
